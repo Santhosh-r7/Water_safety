@@ -4,7 +4,7 @@ add absolute path of file to .env to variable 'LOCATION'
 
 format = [avg_outflow,avg_inflow,total_grid,Am,BOD,COD,TN,T,TM,Tm,SLP,H,PP,VV,V,VM,VG,year,month,day]
 
-avg_outflow: Average outflow of water (likely in million liters per day).
+avg_outflow: Average outflow of water (likely in million liters per day).<br>
 avg_inflow:  Average inflow of water.
 total_grid:  Possibly the total electricity usage in the facility.
 Am:          Ammonia concentration.
