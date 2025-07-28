@@ -11,7 +11,6 @@ from tensorflow import keras
 from sklearn.metrics import mean_squared_error
 from dotenv import load_dotenv
 import os
-import joblib
 
 load_dotenv()
 
@@ -51,19 +50,15 @@ model.compile(optimizer='adam',loss='mean_squared_error')
 
 history = model.fit(x_train,y_train,epochs=500,batch_size=32,validation_data=(x_val,y_val))
 
-# Save model and scaler
-model.save('my_model.keras')
-
 y_pred = model.predict(x_test)
 mse = mean_squared_error(y_test,y_pred)
 rmse = np.sqrt(mse)
 print("RMSE:",rmse)
 
 list_input = os.getenv('input')
-new_input_list = [float(x) for x in list_input.split(',')]
 
 # Example input (ensure it has the correct shape)
-new_input = np.array([new_input_list])  # Replace with actual values
+new_input = np.array([[2.941,2.589,175856,27,365,730,19.3,25.1,12.6,0,56,1.52,10,26.9,53.5,79.5,2014,1,1]])  # Replace with actual values
 
 # If you used StandardScaler during training, apply the same transformation
 new_input_scaled = scaler.transform(new_input)  # Use the same scaler
@@ -72,7 +67,3 @@ new_input_scaled = scaler.transform(new_input)  # Use the same scaler
 predicted_value = model.predict(new_input_scaled)
 
 print("Predicted Value:", predicted_value)
-
-
-#joblib.dump(model, 'N_model.pkl')
-#joblib.dump(scaler, 'scaler.pkl')
