@@ -1,78 +1,100 @@
+from flask import Flask, render_template, request, redirect, jsonify
+from pymongo import MongoClient
 import tensorflow as tf
-import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
+import os
+import joblib
+import datetime
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import Input
-from tensorflow import keras
-from sklearn.metrics import mean_squared_error
-from dotenv import load_dotenv
-import os
-import joblib
 
-load_dotenv()
+# ---------------- CONFIG ----------------
+app = Flask(__name__)
+MONGO_URI = "mongodb://localhost:27017/"
+DB_NAME = "mydatabase"
+COLLECTION_NAME = "mycollection"
+FIELDS = ['avg_outflow', 'avg_inflow', 'total_grid', 'Am', 'BOD', 'COD', 'T', 'TM', 'Tm',
+          'SLP', 'H', 'PP', 'VV', 'V', 'VM', 'VG', 'year', 'month', 'day']
+TARGET = "TN"
+MODEL_FOLDER = "models"
+SCALER_PATH = "scalers/scaler.pkl"
 
-# Read the file path from environment variable
-path = os.getenv("LOCATION")
-if not path:
-    raise ValueError("File location path is not set in .env file!")
+# ---------------- SETUP ----------------
+client = MongoClient(MONGO_URI)
+collection = client[DB_NAME][COLLECTION_NAME]
 
-df = pd.read_csv(path)
+def get_latest_model_file():
+    if not os.path.exists(MODEL_FOLDER):
+        return None
+    files = [os.path.join(MODEL_FOLDER, f) for f in os.listdir(MODEL_FOLDER) if f.endswith('.keras')]
+    return max(files, key=os.path.getmtime) if files else None
 
-#setting everything other than 'TN' as independent variable
-x = df.drop("TN", axis = 1)
-#setting 'TN' as dependent variable
-y = df['TN']
+def load_model_and_scaler():
+    model_path = get_latest_model_file()
+    if not model_path or not os.path.exists(SCALER_PATH):
+        raise FileNotFoundError("Model or scaler not found.")
+    model = tf.keras.models.load_model(model_path)
+    scaler = joblib.load(SCALER_PATH)
+    return model, scaler
 
-#splitting test and train
-x_train,x_temp,y_train,y_temp = train_test_split(x,y,test_size=0.2,random_state=42)
+# ---------------- ROUTES ----------------
 
-#splitting train as validate and test
-x_val,x_test,y_val,y_test = train_test_split(x_temp,y_temp,test_size=0.2,random_state=42)
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-#using scaler to scale data
-scaler = StandardScaler()
-x_train = scaler.fit_transform(x_train)
-x_val = scaler.transform(x_val)
-x_test = scaler.transform(x_test)
+@app.route('/train', methods=['POST'])
+def train():
+    try:
+        data = list(collection.find())
+        if len(data) == 0:
+            return "No data in MongoDB!", 400
 
-#defining layers f
-model = keras.Sequential([
-    Input(shape=(x_train.shape[1],)),
-    Dense(64,activation='relu'),
-    Dense(32,activation='relu'),
-    Dense(1)
-])
+        X = np.array([[float(doc[field]) for field in FIELDS] for doc in data])
+        y = np.array([[float(doc[TARGET])] for doc in data])
 
-model.compile(optimizer='adam',loss='mean_squared_error')
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        joblib.dump(scaler, SCALER_PATH)
 
-history = model.fit(x_train,y_train,epochs=500,batch_size=32,validation_data=(x_val,y_val))
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2)
 
-# Save model and scaler
-model.save('my_model.keras')
+        model = Sequential([
+            Dense(64, activation='relu', input_shape=(X.shape[1],)),
+            Dense(32, activation='relu'),
+            Dense(1)
+        ])
+        model.compile(optimizer='adam', loss='mse')
+        model.fit(X_train, y_train, epochs=20, batch_size=16, verbose=0)
 
-y_pred = model.predict(x_test)
-mse = mean_squared_error(y_test,y_pred)
-rmse = np.sqrt(mse)
-print("RMSE:",rmse)
+        if not os.path.exists(MODEL_FOLDER):
+            os.makedirs(MODEL_FOLDER)
 
-list_input = os.getenv('input')
-new_input_list = [float(x) for x in list_input.split(',')]
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        model.save(os.path.join(MODEL_FOLDER, f'model_{timestamp}.keras'))
 
-# Example input (ensure it has the correct shape)
-new_input = np.array([new_input_list])  # Replace with actual values
+        return redirect('/?msg=Model+trained+successfully')
 
-# If you used StandardScaler during training, apply the same transformation
-new_input_scaled = scaler.transform(new_input)  # Use the same scaler
+    except Exception as e:
+        return redirect(f"/?msg=Training+failed:+{str(e)}")
 
-# Get prediction
-predicted_value = model.predict(new_input_scaled)
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        latest_doc = collection.find().sort([('_id', -1)]).limit(1)[0]
+        input_data = [float(latest_doc[field]) for field in FIELDS]
 
-print("Predicted Value:", predicted_value)
+        model, scaler = load_model_and_scaler()
+        scaled_input = scaler.transform([input_data])
+        predicted = model.predict(scaled_input)[0][0]
 
+        return redirect(f"/?msg=Predicted+TN:+{round(predicted, 3)}")
 
-#joblib.dump(model, 'N_model.pkl')
-#joblib.dump(scaler, 'scaler.pkl')
+    except Exception as e:
+        return redirect(f"/?msg=Prediction+failed:+{str(e)}")
+
+# ---------------- START ----------------
+if __name__ == '__main__':
+    app.run(debug=True)

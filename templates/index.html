@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Water Safety Monitor</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #f4f8fb;
+            color: #333;
+        }
+
+        .top-bar {
+            background-color: #2471A3;
+            color: white;
+            padding: 20px 40px;
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: #3498DB;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #2E86C1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #2471A3;
+            color: white;
+            text-align: left;
+        }
+
+        .msg {
+            font-size: 18px;
+            color: #2E86C1;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .info {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        Water Safety Monitor
+    </div>
+
+    <div class="content">
+
+        {% if msg %}
+            <div class="msg">{{ msg }}</div>
+        {% endif %}
+
+        <div class="button-container">
+            <form method="POST" action="/predict" style="display: inline;">
+                <button type="submit">Predict</button>
+            </form>
+
+            <form method="POST" action="/train" style="display: inline;">
+                <button type="submit">Train</button>
+            </form>
+        </div>
+
+        {% if latest_date %}
+            <div class="info"><strong>Latest Reading Date:</strong> {{ latest_date }}</div>
+        {% endif %}
+
+        {% if document %}
+            <table>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Value</th>
+                </tr>
+                {% for key, value in document.items() %}
+                    <tr>
+                        <td>{{ key }}</td>
+                        <td>{{ value }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% endif %}
+
+    </div>
+</body>
+</html>
